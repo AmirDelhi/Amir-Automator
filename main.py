@@ -36,3 +36,5 @@ with db() as c:
         status TEXT,
         created_at INTEGER
     )""")
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
