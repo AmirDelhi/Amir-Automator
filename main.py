@@ -92,16 +92,21 @@ def home():
 def health():
     return "ok", 200
 
-# Lead viewer route
+# Lead viewer route with error handling and readable timestamps
 @app.route("/admin/leads")
 def admin_leads():
-    rows = []
-    with db() as c:
-        c.execute("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
-        rows = c.fetchall()
+    try:
+        with db() as c:
+            c.execute("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
+            rows = c.fetchall()
+    except Exception as e:
+        return f"<h2>Error loading leads</h2><pre>{str(e)}</pre>", 500
+
     html = ["<h2>Latest Leads</h2><ul>"]
     for r in rows:
-        html.append(f"<li><code>{r[1]}</code> — <small>{r[3]}</small></li>")
+        lead_text = r[1]  # goal field: "name | email | message"
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(r[3]))
+        html.append(f"<li><code>{lead_text}</code> — <small>{timestamp}</small></li>")
     html.append("</ul><p><a href='/'>← Back to Home</a></p>")
     return "\n".join(html)
 
