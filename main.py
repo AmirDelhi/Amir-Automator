@@ -88,6 +88,17 @@ def home():
 @app.route("/health")
 def health():
     return "ok", 200
+@app.route("/admin/leads")
+def admin_leads():
+    rows = []
+    with db() as c:
+        c.execute("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
+        rows = c.fetchall()
+    html = ["<h2>Latest Leads</h2><ul>"]
+    for r in rows:
+        html.append(f"<li><code>{r['goal']}</code> — <small>{r['created_at']}</small></li>")
+    html.append("</ul><p><a href='/'>← Back to Home</a></p>")
+    return "\n".join(html)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
