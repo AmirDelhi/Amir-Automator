@@ -94,7 +94,7 @@ def home():
 def health():
     return "ok", 200
 
-# Lead viewer route with proper cursor and readable timestamps
+# Lead viewer route
 @app.route("/admin/leads")
 def admin_leads():
     try:
@@ -107,11 +107,13 @@ def admin_leads():
 
     html = ["<h2>Latest Leads</h2><ul>"]
     for r in rows:
-        lead_text = r[1]  # goal field: "name | email | message"
+        lead_text = r[1]
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(r[3]))
         html.append(f"<li><code>{lead_text}</code> — <small>{timestamp}</small></li>")
     html.append("</ul><p><a href='/'>← Back to Home</a></p>")
     return "\n".join(html)
+
+# Dashboard route
 @app.route("/dashboard")
 def dashboard():
     return render_template_string("""
@@ -125,6 +127,7 @@ def dashboard():
     <p><a href="/">← Back to Home</a></p>
     """)
 
+# GenAI Copywriter route
 @app.route("/tools/copywriter", methods=["GET", "POST"])
 def tool_copywriter():
     output = ""
@@ -142,6 +145,7 @@ def tool_copywriter():
     <p><a href="/dashboard">← Back</a></p>
     """, output=output)
 
+# Resume Builder route
 @app.route("/tools/resume", methods=["GET", "POST"])
 def tool_resume():
     resume = ""
@@ -174,6 +178,7 @@ Links
     <p><a href="/dashboard">← Back</a></p>
     """, resume=resume)
 
+# File Uploader route
 @app.route("/tools/upload", methods=["GET", "POST"])
 def tool_upload():
     output = ""
@@ -187,13 +192,3 @@ def tool_upload():
     return render_template_string("""
     <h2>File Uploader</h2>
     <form method="POST" enctype="multipart/form-data">
-      <input type="file" name="file">
-      <button type="submit">Upload</button>
-    </form>
-    {% if output %}<pre>{{ output }}</pre>{% endif %}
-    <p><a href="/dashboard">← Back</a></p>
-    """, output=output)
-
-# Run the app
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
