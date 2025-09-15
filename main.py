@@ -113,19 +113,57 @@ def admin_leads():
     html.append("</ul><p><a href='/'>← Back to Home</a></p>")
     return "\n".join(html)
 
-# Dashboard route
+# Styled dashboard route
 @app.route("/dashboard")
 def dashboard():
     return render_template_string("""
-    <h1>Amir Automator — Dashboard</h1>
-    <ul>
-        <li><a href="/admin/leads">View Leads</a></li>
-        <li><a href="/tools/copywriter">GenAI Copywriter</a></li>
-        <li><a href="/tools/resume">Resume Builder</a></li>
-        <li><a href="/tools/upload">File Uploader</a></li>
-    </ul>
-    <p><a href="/">← Back to Home</a></p>
-    """)
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Amir Automator — Dashboard</title>
+      <style>
+        body { font-family: Arial; padding: 40px; background: #fafafa; }
+        h1 { margin-bottom: 10px; }
+        .nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 20px; }
+        .card { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 16px; }
+        .card h3 { margin: 0 0 8px 0; }
+        a.btn { display: inline-block; background: #007bff; color: #fff; padding: 8px 12px; border-radius: 6px; text-decoration: none; }
+        .top { display: flex; justify-content: space-between; align-items: center; }
+        .muted { color: #777; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="top">
+        <h1>Amir Automator</h1>
+        <div class="muted">v0.1 • {{ brand }}</div>
+      </div>
+      <p>Quick tools to collect leads and deliver value fast.</p>
+      <div class="nav">
+        <div class="card">
+          <h3>Leads</h3>
+          <p>View submissions from your homepage form.</p>
+          <a class="btn" href="/admin/leads">Open</a>
+        </div>
+        <div class="card">
+          <h3>GenAI copywriter</h3>
+          <p>Draft headlines, ads, and outreach copy.</p>
+          <a class="btn" href="/tools/copywriter">Open</a>
+        </div>
+        <div class="card">
+          <h3>Resume builder</h3>
+          <p>Generate a clean resume from your inputs.</p>
+          <a class="btn" href="/tools/resume">Open</a>
+        </div>
+        <div class="card">
+          <h3>File uploader</h3>
+          <p>Upload and parse files for quick insights.</p>
+          <a class="btn" href="/tools/upload">Open</a>
+        </div>
+      </div>
+      <p style="margin-top:30px"><a href="/">← Back to Home</a></p>
+    </body>
+    </html>
+    """, brand=os.environ.get("BRAND_NAME", "Amir Automator"))
 
 # GenAI Copywriter route
 @app.route("/tools/copywriter", methods=["GET", "POST"])
@@ -163,32 +201,4 @@ Experience
 - {bullets}
 
 Links
-- WhatsApp: https://wa.me/{os.environ.get("WHATSAPP_NUMBER","91XXXXXXXXXX")}
-"""
-    return render_template_string("""
-    <h2>Resume Builder</h2>
-    <form method="POST">
-      <input name="name" placeholder="Your Name"><br>
-      <input name="role" placeholder="Target Role"><br>
-      <input name="skills" placeholder="Python, Zapier, etc."><br>
-      <textarea name="bullets" rows="4" cols="60" placeholder="Achievements..."></textarea><br>
-      <button type="submit">Generate</button>
-    </form>
-    {% if resume %}<pre>{{ resume }}</pre>{% endif %}
-    <p><a href="/dashboard">← Back</a></p>
-    """, resume=resume)
-
-# File Uploader route
-@app.route("/tools/upload", methods=["GET", "POST"])
-def tool_upload():
-    output = ""
-    if request.method == "POST":
-        file = request.files.get("file")
-        if file and file.filename:
-            path = os.path.join("uploads", file.filename)
-            os.makedirs("uploads", exist_ok=True)
-            file.save(path)
-            output = f"Saved to {path}"
-    return render_template_string("""
-    <h2>File Uploader</h2>
-    <form method="POST" enctype="multipart/form-data">
+- WhatsApp: https://wa.me/{os.environ.get("WHATSAPP_NUMBER","
