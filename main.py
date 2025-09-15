@@ -112,6 +112,87 @@ def admin_leads():
         html.append(f"<li><code>{lead_text}</code> — <small>{timestamp}</small></li>")
     html.append("</ul><p><a href='/'>← Back to Home</a></p>")
     return "\n".join(html)
+@app.route("/dashboard")
+def dashboard():
+    return render_template_string("""
+    <h1>Amir Automator — Dashboard</h1>
+    <ul>
+        <li><a href="/admin/leads">View Leads</a></li>
+        <li><a href="/tools/copywriter">GenAI Copywriter</a></li>
+        <li><a href="/tools/resume">Resume Builder</a></li>
+        <li><a href="/tools/upload">File Uploader</a></li>
+    </ul>
+    <p><a href="/">← Back to Home</a></p>
+    """)
+
+@app.route("/tools/copywriter", methods=["GET", "POST"])
+def tool_copywriter():
+    output = ""
+    if request.method == "POST":
+        prompt = request.form.get("prompt", "").strip()
+        if prompt:
+            output = f"Headline: {prompt}\n\nAd Copy: {prompt} — fast, clear, and benefit-driven."
+    return render_template_string("""
+    <h2>GenAI Copywriter</h2>
+    <form method="POST">
+      <textarea name="prompt" rows="4" cols="60" placeholder="Write a headline..."></textarea><br>
+      <button type="submit">Draft</button>
+    </form>
+    {% if output %}<pre>{{ output }}</pre>{% endif %}
+    <p><a href="/dashboard">← Back</a></p>
+    """, output=output)
+
+@app.route("/tools/resume", methods=["GET", "POST"])
+def tool_resume():
+    resume = ""
+    if request.method == "POST":
+        name = request.form.get("name","").strip()
+        role = request.form.get("role","").strip()
+        skills = request.form.get("skills","").strip()
+        bullets = request.form.get("bullets","").strip()
+        resume = f"""{name} — {role}
+
+Skills
+- {skills}
+
+Experience
+- {bullets}
+
+Links
+- WhatsApp: https://wa.me/{os.environ.get("WHATSAPP_NUMBER","91XXXXXXXXXX")}
+"""
+    return render_template_string("""
+    <h2>Resume Builder</h2>
+    <form method="POST">
+      <input name="name" placeholder="Your Name"><br>
+      <input name="role" placeholder="Target Role"><br>
+      <input name="skills" placeholder="Python, Zapier, etc."><br>
+      <textarea name="bullets" rows="4" cols="60" placeholder="Achievements..."></textarea><br>
+      <button type="submit">Generate</button>
+    </form>
+    {% if resume %}<pre>{{ resume }}</pre>{% endif %}
+    <p><a href="/dashboard">← Back</a></p>
+    """, resume=resume)
+
+@app.route("/tools/upload", methods=["GET", "POST"])
+def tool_upload():
+    output = ""
+    if request.method == "POST":
+        file = request.files.get("file")
+        if file and file.filename:
+            path = os.path.join("uploads", file.filename)
+            os.makedirs("uploads", exist_ok=True)
+            file.save(path)
+            output = f"Saved to {path}"
+    return render_template_string("""
+    <h2>File Uploader</h2>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="file" name="file">
+      <button type="submit">Upload</button>
+    </form>
+    {% if output %}<pre>{{ output }}</pre>{% endif %}
+    <p><a href="/dashboard">← Back</a></p>
+    """, output=output)
 
 # Run the app
 if __name__ == "__main__":
