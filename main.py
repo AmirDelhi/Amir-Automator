@@ -23,14 +23,15 @@ def db():
     return conn
 
 # Create tables once at startup
-with db() as c:
-    c.execute("""CREATE TABLE IF NOT EXISTS tasks (
+with db() as conn:
+    cursor = conn.cursor()
+    cursor.execute("""CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
         goal TEXT,
         status TEXT,
         created_at INTEGER
     )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS steps (
+    cursor.execute("""CREATE TABLE IF NOT EXISTS steps (
         id TEXT PRIMARY KEY,
         task_id TEXT,
         agent TEXT,
@@ -48,8 +49,9 @@ def home():
         name = request.form.get("name")
         email = request.form.get("email")
         message = request.form.get("message")
-        with db() as c:
-            c.execute(
+        with db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
                 "INSERT INTO tasks (id, goal, status, created_at) VALUES (?, ?, ?, ?)",
                 [str(uuid.uuid4()), f"{name} | {email} | {message}", "new", int(time.time())]
             )
@@ -92,13 +94,14 @@ def home():
 def health():
     return "ok", 200
 
-# Lead viewer route with error handling and readable timestamps
+# Lead viewer route with proper cursor and readable timestamps
 @app.route("/admin/leads")
 def admin_leads():
     try:
-        with db() as c:
-            c.execute("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
-            rows = c.fetchall()
+        with db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, goal, status, created_at FROM tasks ORDER BY created_at DESC LIMIT 50")
+            rows = cursor.fetchall()
     except Exception as e:
         return f"<h2>Error loading leads</h2><pre>{str(e)}</pre>", 500
 
