@@ -19,6 +19,7 @@ def db():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Create tables once at startup (no routes inside this block)
 with db() as c:
     c.execute("""CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
@@ -36,15 +37,19 @@ with db() as c:
         status TEXT,
         created_at INTEGER
     )""")
-    @app.route("/", methods=["GET", "POST"])
+
+# Routes start here (top-level, not indented under the "with" block)
+@app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
         name = request.form.get("name")
         email = request.form.get("email")
         message = request.form.get("message")
         with db() as c:
-            c.execute("INSERT INTO tasks (id, goal, status, created_at) VALUES (?, ?, ?, ?)",
-                      [str(uuid.uuid4()), f"{name} | {email} | {message}", "new", int(time.time())])
+            c.execute(
+                "INSERT INTO tasks (id, goal, status, created_at) VALUES (?, ?, ?, ?)",
+                [str(uuid.uuid4()), f"{name} | {email} | {message}", "new", int(time.time())]
+            )
         flash("Thanks! Your message has been received.")
         return redirect("/")
     
@@ -78,5 +83,13 @@ def home():
     </body>
     </html>
     """)
+
+# Optional: tiny health check
+@app.route("/health")
+def health():
+    return "ok", 200
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+
