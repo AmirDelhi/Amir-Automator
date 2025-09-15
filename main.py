@@ -2,9 +2,11 @@ import os, io, time, json, zipfile, sqlite3, uuid, secrets, random
 from urllib.parse import quote_plus
 from flask import Flask, request, redirect, render_template_string, session, url_for, send_file, flash
 
+# App setup
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "amir-dev-secret-keep-it-safe")
 
+# Directories
 UPLOAD_DIR = "uploads"
 GENERATED_DIR = "generated"
 ARTIFACTS_DIR = "artifacts"
@@ -14,12 +16,13 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(GENERATED_DIR, exist_ok=True)
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
+# Database connection
 def db():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Create tables once at startup (no routes inside this block)
+# Create tables once at startup
 with db() as c:
     c.execute("""CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
@@ -38,7 +41,7 @@ with db() as c:
         created_at INTEGER
     )""")
 
-# Routes start here (top-level, not indented under the "with" block)
+# Homepage route with lead form
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
@@ -84,10 +87,12 @@ def home():
     </html>
     """)
 
-# Optional: tiny health check
+# Health check route
 @app.route("/health")
 def health():
     return "ok", 200
+
+# Lead viewer route
 @app.route("/admin/leads")
 def admin_leads():
     rows = []
@@ -96,11 +101,10 @@ def admin_leads():
         rows = c.fetchall()
     html = ["<h2>Latest Leads</h2><ul>"]
     for r in rows:
-        html.append(f"<li><code>{r['goal']}</code> — <small>{r['created_at']}</small></li>")
+        html.append(f"<li><code>{r[1]}</code> — <small>{r[3]}</small></li>")
     html.append("</ul><p><a href='/'>← Back to Home</a></p>")
     return "\n".join(html)
 
+# Run the app
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-
