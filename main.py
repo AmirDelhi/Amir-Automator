@@ -14,7 +14,6 @@ import uuid
 import json
 import shutil
 import zipfile
-import tempfile
 import sqlite3
 import datetime
 import traceback
@@ -77,7 +76,6 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT, description TEXT, filename TEXT, upload_ts DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
-        # Added steps table for workflow 'save_to_db' step support!
         db.execute("""CREATE TABLE IF NOT EXISTS steps (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data TEXT,
@@ -85,7 +83,6 @@ def init_db():
         )""")
     print("Database initialized.")
 
-# --- SECURE ZIP EXTRACTION ---
 def safe_extract(zip_ref, path):
     for member in zip_ref.namelist():
         member_path = os.path.abspath(os.path.join(path, member))
@@ -95,7 +92,6 @@ def safe_extract(zip_ref, path):
 
 init_db()
 
-# --- AI HELPER FUNCTION ---
 def ai_generate(system_prompt, user_prompt):
     """
     Calls an OpenAI-compatible API if env vars are set, else returns demo output.
@@ -121,10 +117,8 @@ def ai_generate(system_prompt, user_prompt):
             return result["choices"][0]["message"]["content"]
         except Exception as e:
             return f"[AI Error: {e}]"
-    # Demo fallback
     return f"[AI DEMO] {system_prompt} | {user_prompt[:80]}..."
 
-# --- BASIC CSS FOR DASHBOARD ---
 DASHBOARD_CSS = """
 <style>
 body { font-family: 'Segoe UI',Arial,sans-serif; background: #f8fafc; margin:0; }
@@ -149,8 +143,6 @@ form label { font-weight:bold;}
 </style>
 """
 
-# --- ROUTES ---
-
 # HOMEPAGE: Lead Capture
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -169,12 +161,12 @@ def home():
         else:
             flash("Name and Email are required.", "danger")
     leads_ct = get_db().execute("SELECT COUNT(*) FROM leads").fetchone()[0]
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header">
-        <h1>{{{{ brand }}}}</h1>
-        <a href="{{{{ url_for('dashboard') }}}}" class="btn">Go to Dashboard</a> &nbsp;
-        <a href="{{{{ url_for('admin_leads') }}}}" class="btn">Admin</a>
+        <h1>{{ brand }}</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn">Go to Dashboard</a> &nbsp;
+        <a href="{{ url_for('admin_leads') }}" class="btn">Admin</a>
     </div>
     <div style="max-width:440px;margin:2.5rem auto;background:#fff;padding:2rem 2rem 1rem 2rem;border-radius:10px;box-shadow:0 2px 8px #0001;">
         <h2>Contact Us</h2>
@@ -196,7 +188,7 @@ def home():
         </form>
         <div style="margin-top:1.6rem;color:#888;">Total leads: {{ leads_ct }}</div>
     </div>
-    """, brand=BRAND_NAME, leads_ct=leads_ct)
+    """, css=DASHBOARD_CSS, brand=BRAND_NAME, leads_ct=leads_ct)
 
 # DASHBOARD: Central Hub
 @app.route("/dashboard")
@@ -233,33 +225,33 @@ def dashboard():
             "url": url_for("admin_leads")
         }
     ]
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header">
-        <h1>{{{{ brand }}}} Dashboard</h1>
+        <h1>{{ brand }} Dashboard</h1>
     </div>
     <div class="cards">
       {% for card in cards %}
         <div class="card">
-          <h3>{{{{ card.title }}}}</h3>
-          <p>{{{{ card.desc }}}}</p>
-          <a href="{{{{ card.url }}}}" class="btn">Open</a>
+          <h3>{{ card.title }}</h3>
+          <p>{{ card.desc }}</p>
+          <a href="{{ card.url }}" class="btn">Open</a>
         </div>
       {% endfor %}
     </div>
-    """, brand=BRAND_NAME, cards=cards)
+    """, css=DASHBOARD_CSS, brand=BRAND_NAME, cards=cards)
 
 # --- ADMIN: Leads & Export ---
 @app.route("/admin/leads")
 def admin_leads():
     db = get_db()
     leads = db.execute("SELECT * FROM leads ORDER BY ts DESC").fetchall()
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header">
       <h1>Admin: Leads</h1>
-      <a href="{{{{ url_for('dashboard') }}}}" class="btn">Dashboard</a>
-      <a href="{{{{ url_for('admin_leads_csv') }}}}" class="btn">Export CSV</a>
+      <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
+      <a href="{{ url_for('admin_leads_csv') }}" class="btn">Export CSV</a>
     </div>
     <main style="max-width:900px;margin:2rem auto;">
     <table>
@@ -276,7 +268,7 @@ def admin_leads():
     </table>
     <div style="margin:1rem 0;"><a href="{{ url_for('home') }}">Back to Home</a></div>
     </main>
-    """, leads=leads)
+    """, css=DASHBOARD_CSS, leads=leads)
 
 @app.route("/admin/leads.csv")
 def admin_leads_csv():
@@ -296,12 +288,12 @@ def admin_leads_csv():
 def builder_pages():
     db = get_db()
     pages = db.execute("SELECT * FROM pages ORDER BY created DESC").fetchall()
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header">
       <h1>Page Builder</h1>
-      <a href="{{{{ url_for('dashboard') }}}}" class="btn">Dashboard</a>
-      <a href="{{{{ url_for('builder_new') }}}}" class="btn">Create New Page</a>
+      <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
+      <a href="{{ url_for('builder_new') }}" class="btn">Create New Page</a>
     </div>
     <main style="max-width:900px;margin:2rem auto;">
       <table>
@@ -316,7 +308,7 @@ def builder_pages():
         {% endfor %}
       </table>
     </main>
-    """, pages=pages)
+    """, css=DASHBOARD_CSS, pages=pages)
 
 @app.route("/builder/new", methods=["GET", "POST"])
 def builder_new():
@@ -334,10 +326,10 @@ def builder_new():
                 return redirect(url_for("builder_pages"))
             except sqlite3.IntegrityError:
                 msg = "Slug already exists. Try another."
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>New Page</h1>
-    <a href="{{{{ url_for('builder_pages') }}}}" class="btn">Pages</a></div>
+    <a href="{{ url_for('builder_pages') }}" class="btn">Pages</a></div>
     <main style="max-width:700px;margin:2rem auto;">
       {% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
       <form method="post">
@@ -350,7 +342,7 @@ def builder_new():
         <button class="btn" type="submit">Publish</button>
       </form>
     </main>
-    """, msg=msg)
+    """, css=DASHBOARD_CSS, msg=msg)
 
 @app.route("/p/<slug>")
 def builder_page(slug):
@@ -358,14 +350,14 @@ def builder_page(slug):
     page = db.execute("SELECT * FROM pages WHERE slug=?", (slug,)).fetchone()
     if not page:
         return "404 Page not found", 404
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div style="max-width:800px;margin:2rem auto 1rem auto;background:#fff;padding:2rem;border-radius:10px;box-shadow:0 2px 8px #0001;">
-      <h1>{{{{ page.title }}}}</h1>
-      <div>{{{{ page.body | safe }}}}</div>
+      <h1>{{ page.title }}</h1>
+      <div>{{ page.body | safe }}</div>
       <div style="margin-top:2em;font-size:90%;color:#888;">Published at {{ page.created }}</div>
     </div>
-    """, page=page)
+    """, css=DASHBOARD_CSS, page=page)
 
 # --- WORKFLOWS ---
 @app.route("/workflows", methods=["GET", "POST"])
@@ -377,7 +369,6 @@ def workflows():
         desc = request.form.get("desc", "").strip()
         steps_json = request.form.get("steps_json", "").strip()
         try:
-            # Validate JSON
             steps = json.loads(steps_json)
             db.execute("INSERT INTO workflows (name, description, steps_json) VALUES (?, ?, ?)",
                        (name, desc, steps_json))
@@ -387,11 +378,11 @@ def workflows():
         except Exception as e:
             msg = f"Error: {e}"
     workflows = db.execute("SELECT * FROM workflows ORDER BY created DESC").fetchall()
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header">
       <h1>Workflows</h1>
-      <a href="{{{{ url_for('dashboard') }}}}" class="btn">Dashboard</a>
+      <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
     </div>
     <main style="max-width:950px;margin:2rem auto;">
       <h3>Create New Workflow</h3>
@@ -409,7 +400,7 @@ def workflows():
         <div class="form-group"><label>Description</label><br>
           <input name="desc"></div>
         <div class="form-group"><label>Steps (JSON array)</label><br>
-          <textarea name="steps_json" rows=6 required>[{{'{{"type":"http_post","url":"https://example.com","payload":{{"foo":"bar"}}}}'}}]</textarea>
+          <textarea name="steps_json" rows=6 required>[{{'{"type":"http_post","url":"https://example.com","payload":{"foo":"bar"}}'}}]</textarea>
         </div>
         <button class="btn" type="submit">Create Workflow</button>
       </form>
@@ -426,7 +417,7 @@ def workflows():
         {% endfor %}
       </table>
     </main>
-    """, workflows=workflows, msg=msg)
+    """, css=DASHBOARD_CSS, workflows=workflows, msg=msg)
 
 @app.route("/workflows/run/<int:id>", methods=["GET", "POST"])
 def workflow_run(id):
@@ -466,10 +457,10 @@ def workflow_run(id):
             results.append(r)
         db.execute("INSERT INTO workflow_logs (workflow_id, result_json) VALUES (?, ?)", (wf["id"], json.dumps(results)))
         db.commit()
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Run Workflow: {{ wf.name }}</h1>
-    <a href="{{{{ url_for('workflows') }}}}" class="btn">Back</a></div>
+    <a href="{{ url_for('workflows') }}" class="btn">Back</a></div>
     <main style="max-width:900px;margin:2rem auto;">
       <div><b>Description:</b> {{ wf.description }}</div>
       <div><b>Steps:</b>
@@ -483,7 +474,7 @@ def workflow_run(id):
       <pre>{{ results|tojson(indent=2) }}</pre>
       {% endif %}
     </main>
-    """, wf=wf, results=results)
+    """, css=DASHBOARD_CSS, wf=wf, results=results)
 
 # --- INBOUND WEBHOOKS ---
 @app.route("/integrations/webhook/<name>", methods=["GET", "POST"])
@@ -509,16 +500,16 @@ def webhook_test():
     db = get_db()
     recent = db.execute("SELECT * FROM webhooks ORDER BY received DESC LIMIT 10").fetchall()
     example_curl = f"""curl -X POST https://{{{{ request.host }}}}/integrations/webhook/testhook -H "X-Test: 123" -d '{{"foo":"bar"}}'"""
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Inbound Webhooks</h1>
-      <a href="{{{{ url_for('dashboard') }}}}" class="btn">Dashboard</a>
+      <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
     </div>
     <main style="max-width:900px;margin:2rem auto;">
       <h3>Send a POST or GET to:</h3>
-      <pre>POST/GET https://{{{{ request.host }}}}/integrations/webhook/&lt;name&gt;</pre>
+      <pre>POST/GET https://{{ request.host }}/integrations/webhook/&lt;name&gt;</pre>
       <div>Example:</div>
-      <pre>{example_curl}</pre>
+      <pre>curl -X POST https://{{ request.host }}/integrations/webhook/testhook -H "X-Test: 123" -d '{"foo":"bar"}'</pre>
       <h3>Recent Webhooks</h3>
       <table>
         <tr><th>Name</th><th>Method</th><th>Received</th><th>Headers</th><th>Payload</th></tr>
@@ -533,7 +524,7 @@ def webhook_test():
         {% endfor %}
       </table>
     </main>
-    """, recent=recent)
+    """, css=DASHBOARD_CSS, recent=recent)
 
 # --- UTILITY TOOLS DASHBOARD ---
 @app.route("/tools")
@@ -547,10 +538,10 @@ def tools():
         {"title":"Summarizer (AI)", "desc":"Paste text, get a summary.", "url":url_for("tools_summarizer")},
         {"title":"Code Runner", "desc":"Python code runner (Replit-lite).", "url":url_for("tools_code")},
     ]
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Utility Tools</h1>
-      <a href="{{{{ url_for('dashboard') }}}}" class="btn">Dashboard</a>
+      <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
     </div>
     <div class="cards">
       {% for t in tool_cards %}
@@ -561,7 +552,7 @@ def tools():
         </div>
       {% endfor %}
     </div>
-    """, tool_cards=tool_cards)
+    """, css=DASHBOARD_CSS, tool_cards=tool_cards)
 
 # --- TOOL: Copywriter (AI) ---
 @app.route("/tools/copywriter", methods=["GET", "POST"])
@@ -570,10 +561,10 @@ def tools_copywriter():
     if request.method == "POST":
         prompt = request.form.get("prompt", "")
         result = ai_generate("You are an expert ad copywriter.", prompt)
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>AI Copywriter</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:700px;margin:2rem auto;">
       <form method="post">
         <div class="form-group"><label>Describe your product or service:</label><br>
@@ -585,7 +576,7 @@ def tools_copywriter():
       <div style="background:#eee;padding:1em;border-radius:5px;">{{ result }}</div>
       {% endif %}
     </main>
-    """, result=result)
+    """, css=DASHBOARD_CSS, result=result)
 
 # --- TOOL: Resume Builder (w/AI polish option) ---
 @app.route("/tools/resume", methods=["GET", "POST"])
@@ -602,10 +593,10 @@ def tools_resume():
             result = ai_generate("You are a resume writing and editing assistant.", resume)
         else:
             result = resume
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Resume Builder</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:700px;margin:2rem auto;">
       <form method="post">
         <div class="form-group"><label>Name</label><br>
@@ -624,7 +615,7 @@ def tools_resume():
       <pre style="background:#eee;padding:1em;border-radius:5px;">{{ result }}</pre>
       {% endif %}
     </main>
-    """, result=result)
+    """, css=DASHBOARD_CSS, result=result)
 
 # --- TOOL: File Upload ---
 @app.route("/tools/upload", methods=["GET", "POST"])
@@ -641,10 +632,10 @@ def tools_upload():
         else:
             msg = "No file selected."
     files = os.listdir(UPLOAD_FOLDER)
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>File Upload</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:700px;margin:2rem auto;">
       {% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
       <form method="post" enctype="multipart/form-data">
@@ -658,7 +649,7 @@ def tools_upload():
       {% endfor %}
       </ul>
     </main>
-    """, msg=msg, files=files)
+    """, css=DASHBOARD_CSS, msg=msg, files=files)
 
 @app.route("/uploads/<fname>")
 def uploaded_file(fname):
@@ -683,10 +674,10 @@ def tools_calculator():
                 result = a / b if b != 0 else "Infinity"
         except Exception:
             result = "Invalid input."
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Calculator</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:500px;margin:2rem auto;">
       <form method="post">
         <input type="number" name="a" step="any" required>
@@ -703,7 +694,7 @@ def tools_calculator():
         <h3>Result: {{ result }}</h3>
       {% endif %}
     </main>
-    """, result=result)
+    """, css=DASHBOARD_CSS, result=result)
 
 # --- TOOL: Text Utils ---
 def slugify(s):
@@ -724,10 +715,10 @@ def tools_textutils():
         elif fmt == "slug":
             out = slugify(txt)
         result = out
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Text Utils</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:600px;margin:2rem auto;">
       <form method="post">
         <div class="form-group"><label>Text</label><br>
@@ -746,7 +737,7 @@ def tools_textutils():
       <pre style="background:#eee;padding:1em;border-radius:5px;">{{ result }}</pre>
       {% endif %}
     </main>
-    """, result=result)
+    """, css=DASHBOARD_CSS, result=result)
 
 # --- TOOL: Summarizer (AI) ---
 @app.route("/tools/summarizer", methods=["GET", "POST"])
@@ -755,10 +746,10 @@ def tools_summarizer():
     if request.method == "POST":
         txt = request.form.get("text", "")
         result = ai_generate("Summarize the following text in a concise way.", txt)
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Summarizer (AI)</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:700px;margin:2rem auto;">
       <form method="post">
         <div class="form-group"><label>Paste text to summarize</label><br>
@@ -770,7 +761,7 @@ def tools_summarizer():
       <div style="background:#eee;padding:1em;border-radius:5px;">{{ result }}</div>
       {% endif %}
     </main>
-    """, result=result)
+    """, css=DASHBOARD_CSS, result=result)
 
 # --- TOOL: Replit-lite Code Runner ---
 @app.route("/tools/code", methods=["GET", "POST"])
@@ -780,7 +771,6 @@ def tools_code():
     if request.method == "POST":
         code = request.form.get("code", "")
         try:
-            # Run code in restricted namespace
             import sys
             import contextlib
             stdout = io.StringIO()
@@ -793,10 +783,10 @@ def tools_code():
             err = stderr.getvalue()
         except Exception as e:
             err = str(e) + "\n" + traceback.format_exc()
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>Python Code Runner</h1>
-    <a href="{{{{ url_for('tools') }}}}" class="btn">Tools</a></div>
+    <a href="{{ url_for('tools') }}" class="btn">Tools</a></div>
     <main style="max-width:900px;margin:2rem auto;">
       <form method="post">
         <div class="form-group"><label>Python Code</label><br>
@@ -814,7 +804,7 @@ def tools_code():
       </div>
       {% endif %}
     </main>
-    """, out=out, err=err, code=code)
+    """, css=DASHBOARD_CSS, out=out, err=err, code=code)
 
 # --- APP HOSTING (Upload Flask mini-app as ZIP) ---
 @app.route("/apps", methods=["GET", "POST"])
@@ -833,7 +823,7 @@ def apps():
             f.save(zip_path)
             try:
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    safe_extract(zip_ref, save_folder)  # <--- USE SAFE EXTRACT!
+                    safe_extract(zip_ref, save_folder)
                 db.execute("INSERT INTO apps (name, description, filename) VALUES (?, ?, ?)", (name, desc, f.filename))
                 db.commit()
                 msg = f"App '{name}' deployed! (Simulated)"
@@ -842,10 +832,10 @@ def apps():
         else:
             msg = "Please upload a .zip file."
     apps = db.execute("SELECT * FROM apps ORDER BY upload_ts DESC").fetchall()
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>App Hosting</h1>
-    <a href="{{{{ url_for('dashboard') }}}}" class="btn">Dashboard</a></div>
+    <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a></div>
     <main style="max-width:900px;margin:2rem auto;">
       {% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
       <h3>Upload Flask App (zip)</h3>
@@ -872,7 +862,7 @@ def apps():
       </table>
       <div style="margin-top:1em;font-size:90%;color:#888;">Note: Uploaded apps are extracted but not auto-executed for safety.</div>
     </main>
-    """, msg=msg, apps=apps)
+    """, css=DASHBOARD_CSS, msg=msg, apps=apps)
 
 # --- HEALTH CHECK ---
 @app.route("/health")
@@ -882,14 +872,14 @@ def health():
 # --- ERROR HANDLER (Optional, for a friendlier 404) ---
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template_string(f"""
-    {DASHBOARD_CSS}
+    return render_template_string("""
+    {{ css|safe }}
     <div class="header"><h1>404 Not Found</h1></div>
     <div style="max-width:600px;margin:3rem auto;text-align:center;">
       <p>The page you are looking for does not exist.</p>
-      <a href="{{{{ url_for('dashboard') }}}}" class="btn">Go to Dashboard</a>
+      <a href="{{ url_for('dashboard') }}" class="btn">Go to Dashboard</a>
     </div>
-    """), 404
+    """, css=DASHBOARD_CSS), 404
 
 # --- DEPLOYMENT INSTRUCTIONS ---
 """
@@ -909,6 +899,5 @@ def page_not_found(e):
 #   $ flask run
 """
 
-# --- MAIN ---
 if __name__ == "__main__":
     app.run(debug=True)
