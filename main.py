@@ -22,6 +22,10 @@ from flask import (
     Flask, request, redirect, url_for, flash, send_file,
     render_template_string, session, jsonify, abort
 )
+# Temporary GPT helper until we connect the real API
+def call_gpt(user_input):
+    # This just echoes back the input in JSON format
+    return '{"action": "echo", "content": "' + user_input + '"}'
 
 # --- ENVIRONMENT VARIABLES & CONFIG ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "supersecretkey")
