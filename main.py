@@ -27,6 +27,9 @@ def call_gpt(user_input):
     # This just echoes back the input in JSON format
     return '{"action": "echo", "content": "' + user_input + '"}'
 
+# Create the Flask app
+app = Flask(__name__)
+
 # --- ENVIRONMENT VARIABLES & CONFIG ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "supersecretkey")
 BRAND_NAME = os.environ.get("BRAND_NAME", "Amir Automator Dashboard")
