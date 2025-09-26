@@ -898,8 +898,6 @@ def page_not_found(e):
 #   $ pip install -r requirements.txt
 #   $ flask run
 """
-
-import os
 @app.route("/chat", methods=["GET","POST"])
 def chat():
     response, raw_cmd, error = None, None, None
@@ -914,22 +912,7 @@ def chat():
                 response = {"ok": True, "message": f"Executed {cmd['action']}"}
             except Exception as e:
                 error = f"Parse error: {e}"
-    return render_template_string("""
-    <h2>Personal AI Assistant</h2>
-    <form method="POST">
-      <textarea name="message" rows="4" style="width:100%" placeholder="Type a command..."></textarea><br>
-      <button type="submit">Run</button>
-    </form>
-    {% if error %}<div style="color:red">{{ error }}</div>{% endif %}
-    {% if raw_cmd %}
-      <h4>Parsed JSON</h4><pre>{{ raw_cmd }}</pre>
-    {% endif %}
-    {% if response %}
-      <h4>Result</h4><pre>{{ response }}</pre>
-    {% endif %}
-    <p><a href="/dashboard">← Back</a></p>
-    """, response=response, raw_cmd=raw_cmd, error=error)
-
+    return render_template_string(""" ... """, response=response, raw_cmd=raw_cmd, error=error)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=True)
