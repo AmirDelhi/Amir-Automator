@@ -897,7 +897,7 @@ def page_not_found(e):
 # For local dev:
 #   $ pip install -r requirements.txt
 #   $ flask run
-"""
+
 @app.route("/chat", methods=["GET","POST"])
 def chat():
     response, raw_cmd, error = None, None, None
