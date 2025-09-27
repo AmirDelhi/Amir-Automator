@@ -22,16 +22,34 @@ from flask import (
     Flask, request, redirect, url_for, flash, send_file,
     render_template_string, session, jsonify, abort
 )
+
 # ✅ Load your secret key from .env file
 from dotenv import load_dotenv
 load_dotenv()
 
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")  # <-- Add this line
 
-# Temporary GPT helper until we connect the real API
+# ✅ Gemini-powered assistant function
 def call_gpt(user_input):
-    # This just echoes back the input in JSON format
-    return '{"action": "echo", "content": "' + user_input + '"}'
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GEMINI_API_KEY}"
+    }
+    data = {
+        "contents": [
+            {"parts": [{"text": user_input}]}
+        ]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        result = response.json()
+        content = result["candidates"][0]["content"]["parts"][0]["text"]
+        return json.dumps({"action": "respond", "content": content})
+    except Exception as e:
+        return json.dumps({"action": "error", "content": str(e)})
 
 # Create the Flask app
 app = Flask(__name__)
@@ -50,7 +68,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(APPS_FOLDER, exist_ok=True)
 
 # --- FLASK APP SETUP ---
-app = Flask(__name__)
 app.secret_key = SECRET_KEY
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB
@@ -61,6 +78,7 @@ def get_db():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 def init_db():
     with get_db() as db:
