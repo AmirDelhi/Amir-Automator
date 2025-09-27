@@ -945,36 +945,20 @@ def page_not_found(e):
 #   $ pip install -r requirements.txt
 #   $ flask run
 
-@app.route("/chat", methods=["GET","POST"])
+@app.route("/chat", methods=["GET", "POST"])
 def chat():
-    response, raw_cmd, error = None, None, None
     if request.method == "POST":
-        user_input = request.form.get("message","").strip()
-        if not user_input:
-            error = "Please type a command."
-        else:
-            raw_cmd = call_gpt(user_input)
-            try:
-                cmd = json.loads(raw_cmd)
-                response = {"ok": True, "message": f"Executed {cmd['action']}"}
-            except Exception as e:
-                error = f"Parse error: {e}"
-    return render_template_string("""
-        <h2>Personal AI Assistant</h2>
-        <form method="POST">
-          <textarea name="message" rows="4" style="width:100%" placeholder="Type a command..."></textarea><br>
-          <button type="submit">Run</button>
-        </form>
-        {% if error %}<div style="color:red">{{ error }}</div>{% endif %}
-        {% if raw_cmd %}
-          <h4>Parsed JSON</h4><pre>{{ raw_cmd }}</pre>
-        {% endif %}
-        {% if response %}
-          <h4>Result</h4><pre>{{ response }}</pre>
-        {% endif %}
-        <p><a href="/dashboard">← Back</a></p>
-    """, response=response, raw_cmd=raw_cmd, error=error)
+        user_input = request.form.get("message", "")
+        response = call_gpt(user_input)
+        return jsonify(response)
 
+    return render_template_string("""
+        <h2>Amir Automator Chat</h2>
+        <form method="post">
+            <input name="message" placeholder="Type your message" style="width:300px">
+            <button type="submit">Send</button>
+        </form>
+    """)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
