@@ -22,6 +22,12 @@ from flask import (
     Flask, request, redirect, url_for, flash, send_file,
     render_template_string, session, jsonify, abort
 )
+# ✅ Load your secret key from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
+AI_API_KEY = os.environ.get("AI_API_KEY", "")
+
 # Temporary GPT helper until we connect the real API
 def call_gpt(user_input):
     # This just echoes back the input in JSON format
