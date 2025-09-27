@@ -78,6 +78,22 @@ def get_db():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
+# --- CHAT ROUTE FOR GEMINI ---
+@app.route("/chat", methods=["GET", "POST"])
+def chat():
+    if request.method == "POST":
+        user_input = request.form.get("message", "")
+        response = call_gpt(user_input)
+        return jsonify(response)
+
+    # Simple HTML form for testing
+    return render_template_string("""
+        <h2>Amir Automator Chat</h2>
+        <form method="post">
+            <input name="message" placeholder="Type your message" style="width:300px">
+            <button type="submit">Send</button>
+        </form>
+    """)
 
 
 def init_db():
