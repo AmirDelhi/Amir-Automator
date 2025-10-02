@@ -54,7 +54,6 @@ def init_db():
             user_prompt TEXT, ai_generated_code TEXT,
             status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
-        # Keep your existing tables
         db.execute("""CREATE TABLE IF NOT EXISTS leads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -133,7 +132,7 @@ def dashboard():
     """, css=DASHBOARD_CSS, cards=cards)
 
 # === AI AUTOMATION BUILDER (Zapier-like) ===
-@app.route("/ai-automation", methods=["GET", "POST"])
+@app.route("/ai_automation", methods=["GET", "POST"])  # FIXED: changed to underscore
 def ai_automation_builder():
     result = ""
     generated_code = ""
@@ -143,7 +142,6 @@ def ai_automation_builder():
         automation_name = request.form.get("name", "Unnamed Automation")
         
         if user_prompt:
-            # AI generates automation code based on natural language
             ai_prompt = f"""
             Create a step-by-step automation workflow based on this user request: "{user_prompt}"
             
@@ -160,7 +158,6 @@ def ai_automation_builder():
             
             generated_code = call_ai_simple(ai_prompt)
             
-            # Save to database
             with get_db() as db:
                 db.execute(
                     "INSERT INTO automations (name, description, user_prompt, ai_generated_code, status) VALUES (?, ?, ?, ?, ?)",
@@ -170,7 +167,6 @@ def ai_automation_builder():
             
             result = generated_code
     
-    # Get previous automations
     with get_db() as db:
         automations = db.execute("SELECT * FROM automations ORDER BY created DESC LIMIT 5").fetchall()
     
@@ -235,7 +231,7 @@ def ai_automation_builder():
     </script>
     """, css=DASHBOARD_CSS, result=result, automations=automations)
 
-# === KEEP YOUR EXISTING WORKFLOWS (simplified) ===
+# === WORKFLOWS ===
 @app.route("/workflows")
 def workflows():
     with get_db() as db:
@@ -261,9 +257,8 @@ def workflows():
 
 @app.route("/workflows/run/<int:id>")
 def workflow_run(id):
-    return "Workflow run page - Add your existing workflow run code here"
+    return "Workflow run page"
 
-# === SIMPLIFIED TOOLS PAGE ===
 @app.route("/tools")
 def tools():
     return render_template_string("""
@@ -274,12 +269,10 @@ def tools():
     </div>
     """, css=DASHBOARD_CSS)
 
-# === SIMPLIFIED LEADS PAGE ===
 @app.route("/admin/leads")
 def admin_leads():
-    return "Leads admin page - Add your existing leads code here"
+    return "Leads admin page"
 
-# === HEALTH CHECK ===
 @app.route("/health")
 def health():
     return "OK"
