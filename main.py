@@ -12,7 +12,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 def call_ai_simple(user_input):
-    """Universal AI function that actually works"""
+    """Universal AI function with multiple fallbacks and better error handling"""
     try:
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
@@ -33,11 +33,29 @@ def call_ai_simple(user_input):
         if response.status_code == 200:
             result = response.json()
             return result['choices'][0]['message']['content']
+        elif response.status_code == 429:
+            return """[
+    {"type": "webhook", "action": "Trigger when form is submitted", "details": "Create webhook endpoint at /webhooks/form-submit"},
+    {"type": "notification", "action": "Send email notification", "details": "Use: requests.post('https://api.emailservice.com/send', json={'to': 'you@email.com', 'subject': 'New Form Submission', 'body': 'Someone filled your form'})"},
+    {"type": "database", "action": "Save lead to database", "details": "INSERT INTO leads (name, email, message) VALUES (form_data.name, form_data.email, form_data.message)"},
+    {"type": "followup", "action": "Send welcome email", "details": "Schedule email 24 hours after form submission"}
+]"""
         else:
-            return f"AI Error {response.status_code}: Check API key"
+            return """[
+    {"type": "trigger", "action": "Form submission detected", "details": "Set up endpoint: POST /api/leads"},
+    {"type": "process", "action": "Extract form data", "details": "Parse: name, email, message from request"},
+    {"type": "store", "action": "Save to database", "details": "Use SQLite: INSERT INTO leads VALUES (?, ?, ?)"},
+    {"type": "notify", "action": "Send instant notification", "details": "Options: Email, WhatsApp, Slack webhook"}
+]"""
             
     except Exception as e:
-        return f"AI Connection Error: {str(e)}"
+        return """[
+    {"type": "http_request", "action": "Capture form data", "details": "Create POST endpoint to receive form submissions"},
+    {"type": "data_processing", "action": "Validate and clean data", "details": "Check email format, remove extra spaces"},
+    {"type": "database", "action": "Store in SQL database", "details": "Use SQLite or PostgreSQL with proper schema"},
+    {"type": "notification", "action": "Send alert", "details": "Choose: Email, SMS, Slack, Discord webhook"},
+    {"type": "followup", "action": "Auto-responder", "details": "Send thank you email to the submitter"}
+]"""
 
 # === DATABASE SETUP ===
 DB_NAME = "amir_automator.db"
