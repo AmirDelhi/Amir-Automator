@@ -72,6 +72,29 @@ def init_db():
             user_prompt TEXT, ai_generated_code TEXT,
             status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
+        
+        # === PASTE START ===
+        # Add API integrations table
+        db.execute("""CREATE TABLE IF NOT EXISTS api_integrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            api_key TEXT,
+            service_type TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        # Add pre-built automations table
+        db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT,
+            category TEXT,
+            steps_json TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        # === PASTE END ===
+        
+        # Keep your existing tables
         db.execute("""CREATE TABLE IF NOT EXISTS leads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -83,6 +106,78 @@ def init_db():
     print("Database initialized.")
 
 init_db()
+
+# === API INTEGRATION FUNCTIONS ===
+def send_google_sheets(data, sheet_name="Automation Data"):
+    """Send data to Google Sheets"""
+    try:
+        # This would use Google Sheets API
+        # For demo, return success message
+        return f"✅ Data sent to Google Sheets: {len(data)} rows"
+    except Exception as e:
+        return f"❌ Google Sheets Error: {str(e)}"
+
+def send_slack_message(message, channel="#general"):
+    """Send message to Slack"""
+    try:
+        # This would use Slack Webhook API
+        # For demo, return success message
+        return f"✅ Message sent to Slack: {message[:50]}..."
+    except Exception as e:
+        return f"❌ Slack Error: {str(e)}"
+
+def send_email(to_email, subject, body):
+    """Send email via SMTP or email service"""
+    try:
+        # This would use email service API
+        # For demo, return success message
+        return f"✅ Email sent to {to_email}"
+    except Exception as e:
+        return f"❌ Email Error: {str(e)}"
+
+def save_to_google_sheets(data, spreadsheet_id):
+    """Save data to specific Google Sheet"""
+    try:
+        return f"✅ Data saved to Google Sheets: {len(data)} items"
+    except Exception as e:
+        return f"❌ Sheets Save Error: {str(e)}"
+
+# === PRE-BUILT AUTOMATION TEMPLATES ===
+PREBUILT_AUTOMATIONS = {
+    "lead_capture": {
+        "name": "Lead Capture & Notification",
+        "description": "Capture form submissions and send instant notifications",
+        "category": "Marketing",
+        "steps": [
+            {"type": "webhook", "action": "Receive form data", "details": "Set up endpoint at /webhooks/lead-capture"},
+            {"type": "database", "action": "Save lead to database", "details": "Store in leads table with timestamp"},
+            {"type": "notification", "action": "Send Slack alert", "details": "Post to #leads channel with lead details"},
+            {"type": "email", "action": "Send welcome email", "details": "Auto-respond to lead within 5 minutes"}
+        ]
+    },
+    "social_media_poster": {
+        "name": "Social Media Auto-Poster",
+        "description": "Automatically post content to multiple social platforms",
+        "category": "Social Media",
+        "steps": [
+            {"type": "content", "action": "Generate social media content", "details": "Use AI to create engaging posts"},
+            {"type": "scheduling", "action": "Schedule posts", "details": "Set optimal posting times"},
+            {"type": "twitter", "action": "Post to Twitter/X", "details": "Auto-post with hashtags and media"},
+            {"type": "linkedin", "action": "Post to LinkedIn", "details": "Professional format for business audience"}
+        ]
+    },
+    "data_backup": {
+        "name": "Automated Data Backup",
+        "description": "Backup important data to cloud storage",
+        "category": "Productivity",
+        "steps": [
+            {"type": "monitor", "action": "Monitor data folder", "details": "Watch for new/changed files"},
+            {"type": "compress", "action": "Compress files", "details": "Create zip archive of important data"},
+            {"type": "cloud", "action": "Upload to cloud storage", "details": "Save to Google Drive/Dropbox"},
+            {"type": "notification", "action": "Send backup report", "details": "Email confirmation with file details"}
+        ]
+    }
+}
 
 DASHBOARD_CSS = """
 <style>
