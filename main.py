@@ -11,7 +11,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 from database import init_db
 init_db()
 # === AI CONFIGURATION ===
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", ")
 
 def call_ai_simple(user_input):
     """Universal AI function with multiple fallbacks and better error handling"""
