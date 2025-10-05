@@ -7,7 +7,7 @@ import secrets
 def get_db():
     """Database connection context manager"""
     conn = sqlite3.connect('automations.db')
-    conn.row_factory = sqlite3.Row  # Get rows as dictionaries
+    conn.row_factory = sqlite3.Row
     try:
         yield conn
     finally:
@@ -29,7 +29,7 @@ def verify_password(stored_hash, provided_password):
 def init_db():
     """Initialize database with all tables"""
     with get_db() as db:
-        # Your existing automations table
+        # Automations table
         db.execute("""CREATE TABLE IF NOT EXISTS automations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT, description TEXT, 
@@ -37,26 +37,7 @@ def init_db():
             status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
         
-        # API integrations table
-        db.execute("""CREATE TABLE IF NOT EXISTS api_integrations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            api_key TEXT,
-            service_type TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
-        # Pre-built automations table
-        db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            description TEXT,
-            category TEXT,
-            steps_json TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
-        # Updated users table with password hash
+        # Users table
         db.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE,
@@ -65,36 +46,13 @@ def init_db():
             created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
         
-        # User automations table
-        db.execute("""CREATE TABLE IF NOT EXISTS user_automations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            automation_name TEXT,
-            automation_data TEXT,
-            status TEXT DEFAULT 'active',
-            created DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )""")
-        
-        # Leads table
-        db.execute("""CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
-        # Workflows table
-        db.execute("""CREATE TABLE IF NOT EXISTS workflows (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, description TEXT, steps_json TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
         print("✅ Database initialized successfully!")
 
 def create_user(email, name, password):
     """Create a new user with password"""
     with get_db() as db:
         try:
-            password_hash = hash_password(password)  # Hash the password
+            password_hash = hash_password(password)
             db.execute(
                 "INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)", 
                 (email, name, password_hash)
@@ -102,24 +60,12 @@ def create_user(email, name, password):
             db.commit()
             return True
         except sqlite3.IntegrityError:
-            return False  # User already exists
+            return False
 
 def get_user_by_email(email):
     """Get user by email"""
     with get_db() as db:
-        user = db.execute(
-            "SELECT * FROM users WHERE email = ?", 
-            (email,)
-        ).fetchone()
-        return user
-
-def get_user_by_id(user_id):
-    """Get user by ID"""
-    with get_db() as db:
-        user = db.execute(
-            "SELECT * FROM users WHERE id = ?", 
-            (user_id,)
-        ).fetchone()
+        user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         return user
 
 def verify_user_login(email, password):
