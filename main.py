@@ -8,10 +8,56 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
-from database import init_db
+# === DATABASE SETUP ===
+DB_NAME = "amir_automator.db"
+def get_db():
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db() as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, description TEXT, 
+            user_prompt TEXT, ai_generated_code TEXT,
+            status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        # Add API integrations table
+        db.execute("""CREATE TABLE IF NOT EXISTS api_integrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            api_key TEXT,
+            service_type TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        # Add pre-built automations table
+        db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT,
+            category TEXT,
+            steps_json TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        # Keep your existing tables
+        db.execute("""CREATE TABLE IF NOT EXISTS leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS workflows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, description TEXT, steps_json TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+    print("Database initialized.")
+
 init_db()
+
 # === AI CONFIGURATION ===
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", ")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")  # ✅ FIXED: Added missing quote
 
 def call_ai_simple(user_input):
     """Universal AI function with multiple fallbacks and better error handling"""
@@ -58,56 +104,6 @@ def call_ai_simple(user_input):
     {"type": "notification", "action": "Send alert", "details": "Choose: Email, SMS, Slack, Discord webhook"},
     {"type": "followup", "action": "Auto-responder", "details": "Send thank you email to the submitter"}
 ]"""
-
-# === DATABASE SETUP ===
-DB_NAME = "amir_automator.db"
-def get_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    with get_db() as db:
-        db.execute("""CREATE TABLE IF NOT EXISTS automations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, description TEXT, 
-            user_prompt TEXT, ai_generated_code TEXT,
-            status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
-        # === PASTE START ===
-        # Add API integrations table
-        db.execute("""CREATE TABLE IF NOT EXISTS api_integrations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            api_key TEXT,
-            service_type TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
-        # Add pre-built automations table
-        db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            description TEXT,
-            category TEXT,
-            steps_json TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        # === PASTE END ===
-        
-        # Keep your existing tables
-        db.execute("""CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        db.execute("""CREATE TABLE IF NOT EXISTS workflows (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, description TEXT, steps_json TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-    print("Database initialized.")
-
-init_db()
 
 # === API INTEGRATION FUNCTIONS ===
 def send_google_sheets(data, sheet_name="Automation Data"):
@@ -463,7 +459,7 @@ def dashboard():
     """, css=DASHBOARD_CSS, cards=cards)
 
 # === AI AUTOMATION BUILDER (Zapier-like) ===
-@app.route("/ai_automation", methods=["GET", "POST"])  # FIXED: changed to underscore
+@app.route("/ai_automation", methods=["GET", "POST"])
 def ai_automation_builder():
     result = ""
     generated_code = ""
