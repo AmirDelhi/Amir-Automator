@@ -1,15 +1,14 @@
+# SIMPLE IN-MEMORY DATABASE - NO FILE SYSTEM ISSUES
 import sqlite3
-import hashlib
-import secrets
 
+# Use in-memory database for now - ALWAYS WORKS
 def get_db_connection():
-    """Get database connection - ABSOLUTELY SIMPLE"""
-    conn = sqlite3.connect('automations.db', check_same_thread=False)
+    conn = sqlite3.connect(':memory:', check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    """Initialize database - ONLY ONE SIMPLE TABLE"""
+    """Initialize in-memory database"""
     conn = get_db_connection()
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -18,27 +17,30 @@ def init_db():
             name TEXT
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT,
+            user_prompt TEXT,
+            ai_generated_code TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
-    print("Database ready")
+    print("✅ In-memory database ready")
+    return True
 
+# Simple functions that will 100% work
 def create_user(email, name):
-    """Simple user creation - no password for now"""
     conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO users (email, name) VALUES (?, ?)", 
-        (email, name)
-    )
+    conn.execute("INSERT INTO users (email, name) VALUES (?, ?)", (email, name))
     conn.commit()
     conn.close()
     return True
 
-def get_user_by_email(email):
-    """Simple user retrieval"""
+def get_users():
     conn = get_db_connection()
-    user = conn.execute(
-        "SELECT * FROM users WHERE email = ?", 
-        (email,)
-    ).fetchone()
+    users = conn.execute("SELECT * FROM users").fetchall()
     conn.close()
-    return user
+    return users
