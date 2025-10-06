@@ -10,6 +10,7 @@ def get_db_connection():
 
 def init_db():
     """Initialize database tables - MINIMAL AND SAFE"""
+    conn = None
     try:
         conn = get_db_connection()
         
@@ -33,12 +34,14 @@ def init_db():
         )''')
         
         conn.commit()
-        conn.close()
         print("✅ Database initialized successfully!")
         return True
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
 
 def hash_password(password):
     """Hash a password for storing"""
@@ -62,6 +65,7 @@ def verify_password(stored_hash, provided_password):
 
 def create_user(email, name, password):
     """Create a new user with password"""
+    conn = None
     try:
         conn = get_db_connection()
         password_hash = hash_password(password)
@@ -73,27 +77,29 @@ def create_user(email, name, password):
             (email, name, password_hash)
         )
         conn.commit()
-        conn.close()
         return True
     except sqlite3.IntegrityError:
         return False  # User already exists
-    except Exception:
+    except Exception as e:
+        print(f"User creation error: {e}")
         return False
     finally:
-        try:
+        if conn:
             conn.close()
-        except:
-            pass
 
 def get_user_by_email(email):
     """Get user by email"""
+    conn = None
     try:
         conn = get_db_connection()
         user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        conn.close()
         return user
-    except Exception:
+    except Exception as e:
+        print(f"Get user error: {e}")
         return None
+    finally:
+        if conn:
+            conn.close()
 
 def verify_user_login(email, password):
     """Verify user login credentials"""
@@ -102,5 +108,6 @@ def verify_user_login(email, password):
         if user and verify_password(user['password_hash'], password):
             return user
         return None
-    except Exception:
+    except Exception as e:
+        print(f"Login verification error: {e}")
         return None
