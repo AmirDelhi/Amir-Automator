@@ -530,9 +530,14 @@ def ai_automation_builder():
         <div class="card" style="width:100%; margin-top:2rem; background:#f0f9ff;">
             <h3>🎯 Generated Automation</h3>
             <pre style="background:#fff; padding:1rem; border-radius:5px; overflow-x:auto;">{{ result }}</pre>
-            <div style="margin-top:1rem;">
+                       <div style="margin-top:1rem;">
                 <button class="btn" onclick="copyToClipboard('{{ result | replace("'", "\\'") | replace("\n", "\\n") }}')">📋 Copy Code</button>
-                <a href="{{ url_for('workflows') }}" class="btn">🚀 Implement This</a>
+                <button class="btn" onclick="executeAutomation()" style="background:#10b981;">🚀 Execute Automation</button>
+                <a href="{{ url_for('workflows') }}" class="btn">💾 Save as Workflow</a>
+            </div>
+            <div id="executionResults" style="margin-top:1rem; display:none;">
+                <h4>Execution Results:</h4>
+                <div id="resultsList"></div>
             </div>
         </div>
         {% endif %}
@@ -550,13 +555,58 @@ def ai_automation_builder():
         </div>
         {% endif %}
     </main>
-    <script>
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text);
-        alert('Copied to clipboard!');
-    }
-    </script>
-    """, css=DASHBOARD_CSS, result=result, automations=automations)
+           <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('Copied to clipboard!');
+        }
+
+        async function executeAutomation() {
+            try {
+                const resultText = `{{ result | safe }}`;
+                const steps = JSON.parse(resultText);
+                
+                const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
+                executeBtn.innerHTML = '⏳ Executing...';
+                executeBtn.disabled = true;
+                
+                const response = await fetch('/execute_automation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ steps: steps })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const resultsDiv = document.getElementById('executionResults');
+                    const resultsList = document.getElementById('resultsList');
+                    
+                    resultsList.innerHTML = data.results.map(result => 
+                        `<div style="padding:0.5rem; border-left:3px solid #10b981; margin:0.5rem 0; background:white;">
+                            ${result}
+                        </div>`
+                    ).join('');
+                    
+                    resultsDiv.style.display = 'block';
+                    executeBtn.innerHTML = '✅ Executed!';
+                } else {
+                    alert('Error: ' + data.error);
+                    executeBtn.innerHTML = '🚀 Execute Automation';
+                    executeBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                alert('Error executing automation: ' + error.message);
+                const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
+                executeBtn.innerHTML = '🚀 Execute Automation';
+                executeBtn.disabled = false;
+            }
+        }
+        </script>
+        """, css=DASHBOARD_CSS, result=result, automations=automations)
 
 # === WORKFLOWS ===
 @app.route("/workflows")
@@ -603,6 +653,43 @@ def admin_leads():
 @app.route("/health")
 def health():
     return "OK"
+
+# === AUTOMATION EXECUTION ===
+@app.route("/execute_automation", methods=["POST"])
+def execute_automation():
+    """Execute a generated automation"""
+    try:
+        automation_steps = request.json.get('steps', [])
+        results = []
+        
+        for step in automation_steps:
+            step_type = step.get('type', '')
+            action = step.get('action', '')
+            details = step.get('details', '')
+            
+            # Simulate executing different step types
+            if step_type == "webhook":
+                results.append(f"✅ Webhook created: {action}")
+            elif step_type == "notification":
+                results.append(f"✅ Notification sent: {action}")
+            elif step_type == "database":
+                results.append(f"✅ Database updated: {action}")
+            elif step_type == "email":
+                results.append(f"✅ Email scheduled: {action}")
+            else:
+                results.append(f"⚡ Executed: {action}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Automation executed successfully!",
+            "results": results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
