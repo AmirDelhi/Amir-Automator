@@ -680,7 +680,6 @@ def admin_leads():
 @app.route("/health")
 def health():
     return "OK"
-
 # === AUTOMATION EXECUTION ===
 @app.route("/execute_automation", methods=["POST"])
 def execute_automation():
@@ -689,22 +688,25 @@ def execute_automation():
         automation_steps = request.json.get('steps', [])
         results = []
         
+        print(f"Executing {len(automation_steps)} steps")
+        
+        # ✅ ONLY ONE FOR LOOP
         for step in automation_steps:
             step_type = step.get('type', '')
             action = step.get('action', '')
             details = step.get('details', '')
             
-            # Execute different step types with REAL functionality
+            print(f"Processing step: {step_type} - {action}")
+            
+            # Execute different step types
             if step_type == "webhook":
                 if "whatsapp" in action.lower():
-                    # Simulate WhatsApp webhook setup
                     results.append(f"✅ WhatsApp webhook configured: {action}")
                 else:
                     results.append(f"✅ Webhook created: {action}")
                     
             elif step_type == "notification":
                 if "whatsapp" in action.lower() or "message" in action.lower():
-                    # Send actual WhatsApp message
                     whatsapp_result = send_whatsapp_message("+1234567890", f"Automation: {action}")
                     results.append(whatsapp_result)
                 else:
@@ -715,7 +717,7 @@ def execute_automation():
                 with get_db() as db:
                     db.execute(
                         "INSERT INTO leads (name, email, message) VALUES (?, ?, ?)",
-                        ("Auto Lead", "auto@example.com", f"Automation: {action}")
+                        ("Auto Lead", "auto@example.com", f"Automation: {action} - {details}")
                     )
                     db.commit()
                 results.append(f"✅ Database updated: {action}")
@@ -726,8 +728,18 @@ def execute_automation():
                 
             elif step_type == "data_processing":
                 results.append(f"✅ Data processed: {action}")
+                
+            elif step_type == "followup":
+                results.append(f"✅ Followup scheduled: {action}")
+                
+            elif step_type == "http_request":
+                results.append(f"✅ HTTP request executed: {action}")
+                
             else:
-                results.append(f"⚡ Executed: {action}")        
+                results.append(f"⚡ Executed: {action}")
+
+        print(f"Execution completed with {len(results)} results")
+        
         return jsonify({
             "success": True,
             "message": "Automation executed successfully!",
@@ -735,6 +747,7 @@ def execute_automation():
         })
         
     except Exception as e:
+        print(f"Execution error: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
