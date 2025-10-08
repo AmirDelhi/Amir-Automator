@@ -2,29 +2,35 @@
 import os, uuid, json, sqlite3, requests
 from flask import Flask, request, redirect, url_for, flash, render_template_string, session, jsonify
 from dotenv import load_dotenv
-
+import hashlib
+import secrets
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
-# === DATABASE SETUP ===
-DB_NAME = "amir_automator.db"
-def get_db():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 def init_db():
     with get_db() as db:
+        # ADD USER TABLE FIRST
+        db.execute("""CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            name TEXT,
+            password_hash TEXT,
+            plan TEXT DEFAULT 'free',
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        # UPDATE automations table to include user_id
         db.execute("""CREATE TABLE IF NOT EXISTS automations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             name TEXT, description TEXT, 
             user_prompt TEXT, ai_generated_code TEXT,
             status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
         
-        # Add API integrations table
+        # Your existing tables continue...
         db.execute("""CREATE TABLE IF NOT EXISTS api_integrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -33,6 +39,26 @@ def init_db():
             created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
         
+        db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT,
+            category TEXT,
+            steps_json TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        db.execute("""CREATE TABLE IF NOT EXISTS leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        
+        db.execute("""CREATE TABLE IF NOT EXISTS workflows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, description TEXT, steps_json TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+    print("Database initialized.")   
+    
         # Add pre-built automations table
         db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +81,30 @@ def init_db():
     print("Database initialized.")
 
 init_db()
+# === USER MANAGEMENT SYSTEM ===
+def hash_password(password):
+    """Hash a password for storing"""
+    salt = secrets.token_hex(16)
+    return f"{salt}${hashlib.sha256((salt + password).encode()).hexdigest()}"
 
+def verify_password(stored_hash, provided_password):
+    """Verify a stored password against one provided by user"""
+    if not stored_hash or '$' not in stored_hash:
+        return False
+    salt, stored_hashed = stored_hash.split('$', 1)
+    computed_hash = hashlib.sha256((salt + provided_password).encode()).hexdigest()
+    return computed_hash == stored_hashed
+
+def get_current_user():
+    """Get current user from session"""
+    if 'user_id' in session:
+        with get_db() as db:
+            user = db.execute(
+                "SELECT * FROM users WHERE id = ?", 
+                (session['user_id'],)
+            ).fetchone()
+            return user
+    return None
 # === AI CONFIGURATION ===
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")  # ✅ FIXED: Added missing quote
 
@@ -446,6 +495,8 @@ def home():
 # === DASHBOARD ===
 @app.route("/dashboard")
 def dashboard():
+    user = get_current_user()
+    
     cards = [
         {
             "title": "🤖 AI Automation Builder",
@@ -453,26 +504,37 @@ def dashboard():
             "url": url_for("ai_automation_builder")
         },
         {
-            "title": "📊 Workflows", 
-            "desc": "Design and run automated workflows",
+            "title": "💰 Pricing & Plans", 
+            "desc": "Choose your plan and unlock powerful features",
+            "url": url_for("pricing")
+        },
+        {
+            "title": "📊 My Automations" if user else "📊 Workflows",
+            "desc": "Your saved automations and workflows", 
             "url": url_for("workflows")
         },
         {
             "title": "🛠️ Utility Tools",
             "desc": "AI Copywriter, Text Tools, File Upload and more",
             "url": url_for("tools")
-        },
-        {
-            "title": "📨 Lead Capture",
-            "desc": "Contact form and lead management",
-            "url": url_for("admin_leads")
         }
     ]
-    return render_template_string("""
+    
+    return render_template_string('''
     {{ css|safe }}
     <div class="header">
         <h1>🚀 Amir Automator Dashboard</h1>
         <p>AI-Powered Automation Platform</p>
+        {% if user %}
+            <p>Welcome back, {{ user.name }}! ({{ user.plan }} plan)
+               <a href="{{ url_for('logout') }}" style="color:white; margin-left:1rem;">Logout</a>
+            </p>
+        {% else %}
+            <p>
+                <a href="{{ url_for('login') }}" style="color:white;">Login</a> | 
+                <a href="{{ url_for('register') }}" style="color:white;">Register</a>
+            </p>
+        {% endif %}
     </div>
     <div class="cards">
       {% for card in cards %}
@@ -483,8 +545,14 @@ def dashboard():
         </div>
       {% endfor %}
     </div>
-    """, css=DASHBOARD_CSS, cards=cards)
-
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    ''', css=DASHBOARD_CSS, user=user, cards=cards)
 # === AI AUTOMATION BUILDER (Zapier-like) ===
 @app.route("/ai_automation", methods=["GET", "POST"])
 def ai_automation_builder():
@@ -520,12 +588,118 @@ def ai_automation_builder():
                 db.commit()
             
             result = generated_code
-    
     with get_db() as db:
         automations = db.execute("SELECT * FROM automations ORDER BY created DESC LIMIT 5").fetchall()
-    
-    return render_template_string("""
+        return render_template_string("""
     {{ css|safe }}
+    <div class="header">
+        <h1>🤖 AI Automation Builder</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
+    </div>
+    <main style="max-width:900px; margin:2rem auto; padding:0 1rem;">
+        <div class="card" style="width:100%;">
+            <h3>Describe Your Automation</h3>
+            <p>Tell me what you want to automate in plain English, like:</p>
+            <ul>
+                <li>"When someone fills my contact form, send me a WhatsApp message"</li>
+                <li>"Extract all emails from a webpage and save to CSV"</li>
+                <li>"Monitor a website for price changes and notify me"</li>
+            </ul>
+            
+            <form method="post">
+                <div class="form-group">
+                    <label>Automation Name:</label>
+                    <input type="text" name="name" value="My Automation" required>
+                </div>
+                <div class="form-group">
+                    <label>Describe what you want to automate:</label>
+                    <textarea name="prompt" rows="5" placeholder="e.g., When I get a new lead, automatically add them to my CRM and send a welcome email..." required></textarea>
+                </div>
+                <button class="btn" type="submit">🤖 Generate Automation</button>
+            </form>
+        </div>
+
+        {% if result %}
+        <div class="card" style="width:100%; margin-top:2rem; background:#f0f9ff;">
+            <h3>🎯 Generated Automation</h3>
+            <pre style="background:#fff; padding:1rem; border-radius:5px; overflow-x:auto;">{{ result }}</pre>
+            <div style="margin-top:1rem;">
+                <button class="btn" onclick="copyToClipboard('{{ result | replace("'", "\\'") | replace("\n", "\\n") }}')">📋 Copy Code</button>
+                <button class="btn" onclick="executeAutomation()" style="background:#10b981;">🚀 Execute Automation</button>
+                <a href="{{ url_for('workflows') }}" class="btn">💾 Save as Workflow</a>
+            </div>
+            <div id="executionResults" style="margin-top:1rem; display:none;">
+                <h4>Execution Results:</h4>
+                <div id="resultsList"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if automations %}
+        <div class="card" style="width:100%; margin-top:2rem;">
+            <h3>📚 Recent Automations</h3>
+            {% for auto in automations %}
+            <div style="border-bottom:1px solid #eee; padding:1rem 0;">
+                <strong>{{ auto.name }}</strong>
+                <p style="color:#666; margin:0.5rem 0;">{{ auto.description }}</p>
+                <small style="color:#999;">Created: {{ auto.created }}</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </main>
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('Copied to clipboard!');
+        }
+
+        async function executeAutomation() {
+            try {
+                const resultText = `{{ result | safe }}`;
+                const steps = JSON.parse(resultText);
+                
+                const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
+                executeBtn.innerHTML = '⏳ Executing...';
+                executeBtn.disabled = true;
+                
+                const response = await fetch('/execute_automation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ steps: steps })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const resultsDiv = document.getElementById('executionResults');
+                    const resultsList = document.getElementById('resultsList');
+                    
+                    resultsList.innerHTML = data.results.map(result => 
+                        `<div style="padding:0.5rem; border-left:3px solid #10b981; margin:0.5rem 0; background:white;">
+                            ${result}
+                        </div>`
+                    ).join('');
+                    
+                    resultsDiv.style.display = 'block';
+                    executeBtn.innerHTML = '✅ Executed!';
+                } else {
+                    alert('Error: ' + data.error);
+                    executeBtn.innerHTML = '🚀 Execute Automation';
+                    executeBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                alert('Error executing automation: ' + error.message);
+                const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
+                executeBtn.innerHTML = '🚀 Execute Automation';
+                executeBtn.disabled = false;
+            }
+        }
+    </script>
+    """, css=DASHBOARD_CSS, result=result, automations=automations)
     <div class="header">
         <h1>🤖 AI Automation Builder</h1>
         <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
@@ -680,6 +854,166 @@ def admin_leads():
 @app.route("/health")
 def health():
     return "OK"
+# === AUTHENTICATION ROUTES ===
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        email = request.form.get("email")
+        name = request.form.get("name")
+        password = request.form.get("password")
+        
+        if not email or not password:
+            flash("Please fill all fields", "error")
+            return redirect(url_for("register"))
+        
+        try:
+            with get_db() as db:
+                password_hash = hash_password(password)
+                db.execute(
+                    "INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)",
+                    (email, name, password_hash)
+                )
+                db.commit()
+            
+            flash("Registration successful! Please login.", "success")
+            return redirect(url_for("login"))
+            
+        except sqlite3.IntegrityError:
+            flash("Email already exists", "error")
+    
+    return render_template_string('''
+    {{ css|safe }}
+    <div class="header">
+        <h1>Create Account</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn">Home</a>
+    </div>
+    <main style="max-width:500px; margin:2rem auto;">
+        <div class="card">
+            <form method="POST">
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Full Name:</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>Password:</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn">Register</button>
+            </form>
+            <p style="margin-top:1rem;">Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+        </div>
+    </main>
+    ''', css=DASHBOARD_CSS)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        
+        with get_db() as db:
+            user = db.execute(
+                "SELECT * FROM users WHERE email = ?", 
+                (email,)
+            ).fetchone()
+        
+        if user and verify_password(user['password_hash'], password):
+            session['user_id'] = user['id']
+            session['user_email'] = user['email']
+            session['user_name'] = user['name']
+            session['user_plan'] = user['plan']
+            flash("Login successful!", "success")
+            return redirect(url_for("dashboard"))
+        else:
+            flash("Invalid email or password", "error")
+    
+    return render_template_string('''
+    {{ css|safe }}
+    <div class="header">
+        <h1>Login</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn">Home</a>
+    </div>
+    <main style="max-width:500px; margin:2rem auto;">
+        <div class="card">
+            <form method="POST">
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password:</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+            <p style="margin-top:1rem;">Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+        </div>
+    </main>
+    ''', css=DASHBOARD_CSS)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged out successfully", "success")
+    return redirect(url_for("dashboard"))
+
+# === PRICING PAGE ===
+@app.route("/pricing")
+def pricing():
+    user = get_current_user()
+    return render_template_string('''
+    {{ css|safe }}
+    <div class="header">
+        <h1>💰 Pricing Plans</h1>
+        <p>Choose the perfect plan for your automation needs</p>
+        <a href="{{ url_for('dashboard') }}" class="btn">← Back to Dashboard</a>
+    </div>
+    <div class="cards">
+        <div class="card">
+            <h3>🚀 Free</h3>
+            <p><strong>$0/month</strong></p>
+            <ul style="text-align:left; margin:1rem 0;">
+                <li>5 automations/month</li>
+                <li>Basic AI templates</li>
+                <li>Community support</li>
+                <li>Email notifications</li>
+            </ul>
+            {% if user %}
+                <a href="{{ url_for('dashboard') }}" class="btn">Current Plan</a>
+            {% else %}
+                <a href="{{ url_for('register') }}" class="btn">Get Started Free</a>
+            {% endif %}
+        </div>
+        <div class="card" style="border:2px solid #667eea; transform: scale(1.05);">
+            <h3>⭐ Pro</h3>
+            <p><strong>$19/month</strong></p>
+            <ul style="text-align:left; margin:1rem 0;">
+                <li>Unlimited automations</li>
+                <li>WhatsApp/Slack integration</li>
+                <li>Priority support</li>
+                <li>Advanced templates</li>
+                <li>API access</li>
+            </ul>
+            <a href="#" class="btn" style="background:#667eea;">Upgrade to Pro</a>
+        </div>
+        <div class="card">
+            <h3>🏢 Business</h3>
+            <p><strong>$49/month</strong></p>
+            <ul style="text-align:left; margin:1rem 0;">
+                <li>Everything in Pro</li>
+                <li>White-label option</li>
+                <li>Custom integrations</li>
+                <li>Dedicated support</li>
+                <li>Team collaboration</li>
+            </ul>
+            <a href="#" class="btn">Contact Sales</a>
+        </div>
+    </div>
+    ''', css=DASHBOARD_CSS, user=user)    
 # === AUTOMATION EXECUTION ===
 @app.route("/execute_automation", methods=["POST"])
 def execute_automation():
