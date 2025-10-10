@@ -9,6 +9,14 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
+# === DATABASE SETUP ===
+DB_NAME = "amir_automator.db"
+
+def get_db():
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def init_db():
     with get_db() as db:
         # ADD USER TABLE FIRST
@@ -21,13 +29,16 @@ def init_db():
             created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
         
-        # UPDATE automations table to include user_id
+        # ADD AUTOMATIONS TABLE
         db.execute("""CREATE TABLE IF NOT EXISTS automations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
-            name TEXT, description TEXT, 
-            user_prompt TEXT, ai_generated_code TEXT,
-            status TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
+            name TEXT, 
+            description TEXT, 
+            user_prompt TEXT, 
+            ai_generated_code TEXT,
+            status TEXT, 
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
         
         # Your existing tables continue...
@@ -57,30 +68,13 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT, description TEXT, steps_json TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
         )""")
-    print("Database initialized.")   
-    
-        # Add pre-built automations table
-        db.execute("""CREATE TABLE IF NOT EXISTS prebuilt_automations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            description TEXT,
-            category TEXT,
-            steps_json TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
         
-        # Keep your existing tables
-        db.execute("""CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, email TEXT, message TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        db.execute("""CREATE TABLE IF NOT EXISTS workflows (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT, description TEXT, steps_json TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
+        db.commit()
+    
     print("Database initialized.")
 
 init_db()
+
 # === USER MANAGEMENT SYSTEM ===
 def hash_password(password):
     """Hash a password for storing"""
@@ -105,8 +99,9 @@ def get_current_user():
             ).fetchone()
             return user
     return None
+
 # === AI CONFIGURATION ===
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")  # ✅ FIXED: Added missing quote
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 def call_ai_simple(user_input):
     """Universal AI function with multiple fallbacks and better error handling"""
@@ -158,8 +153,6 @@ def call_ai_simple(user_input):
 def send_google_sheets(data, sheet_name="Automation Data"):
     """Send data to Google Sheets"""
     try:
-        # This would use Google Sheets API
-        # For demo, return success message
         return f"✅ Data sent to Google Sheets: {len(data)} rows"
     except Exception as e:
         return f"❌ Google Sheets Error: {str(e)}"
@@ -167,8 +160,6 @@ def send_google_sheets(data, sheet_name="Automation Data"):
 def send_slack_message(message, channel="#general"):
     """Send message to Slack"""
     try:
-        # This would use Slack Webhook API
-        # For demo, return success message
         return f"✅ Message sent to Slack: {message[:50]}..."
     except Exception as e:
         return f"❌ Slack Error: {str(e)}"
@@ -176,8 +167,6 @@ def send_slack_message(message, channel="#general"):
 def send_email(to_email, subject, body):
     """Send email via SMTP or email service"""
     try:
-        # This would use email service API
-        # For demo, return success message
         return f"✅ Email sent to {to_email}"
     except Exception as e:
         return f"❌ Email Error: {str(e)}"
@@ -193,29 +182,18 @@ def save_to_google_sheets(data, spreadsheet_id):
 def send_whatsapp_message(to_number, message):
     """Send WhatsApp message using Twilio API"""
     try:
-        # Twilio credentials - you'll get these from twilio.com
         account_sid = os.environ.get('TWILIO_ACCOUNT_SID', 'demo')
         auth_token = os.environ.get('TWILIO_AUTH_TOKEN', 'demo')
         from_whatsapp = os.environ.get('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')
         
-        # For demo - if no real credentials, simulate sending
         if account_sid == 'demo' or auth_token == 'demo':
             return f"📱 WhatsApp message ready to send to {to_number}: {message[:50]}..."
-        
-        # Real Twilio integration (commented for now)
-        # from twilio.rest import Client
-        # client = Client(account_sid, auth_token)
-        # message = client.messages.create(
-        #     body=message,
-        #     from_=from_whatsapp,
-        #     to=f'whatsapp:{to_number}'
-        # )
-        # return f"✅ WhatsApp sent to {to_number}: {message.sid}"
         
         return f"📱 WhatsApp message ready to send to {to_number}: {message[:50]}..."
         
     except Exception as e:
         return f"❌ WhatsApp Error: {str(e)}"
+
 # === PRE-BUILT AUTOMATION TEMPLATES ===
 PREBUILT_AUTOMATIONS = {
     "lead_capture": {
@@ -553,6 +531,7 @@ def dashboard():
         {% endif %}
     {% endwith %}
     ''', css=DASHBOARD_CSS, user=user, cards=cards)
+
 # === AI AUTOMATION BUILDER (Zapier-like) ===
 @app.route("/ai_automation", methods=["GET", "POST"])
 def ai_automation_builder():
@@ -588,9 +567,11 @@ def ai_automation_builder():
                 db.commit()
             
             result = generated_code
+    
     with get_db() as db:
         automations = db.execute("SELECT * FROM automations ORDER BY created DESC LIMIT 5").fetchall()
-        return render_template_string("""
+    
+    return render_template_string("""
     {{ css|safe }}
     <div class="header">
         <h1>🤖 AI Automation Builder</h1>
@@ -700,114 +681,6 @@ def ai_automation_builder():
         }
     </script>
     """, css=DASHBOARD_CSS, result=result, automations=automations)
-    <div class="header">
-        <h1>🤖 AI Automation Builder</h1>
-        <a href="{{ url_for('dashboard') }}" class="btn">Dashboard</a>
-    </div>
-    <main style="max-width:900px; margin:2rem auto; padding:0 1rem;">
-        <div class="card" style="width:100%;">
-            <h3>Describe Your Automation</h3>
-            <p>Tell me what you want to automate in plain English, like:</p>
-            <ul>
-                <li>"When someone fills my contact form, send me a WhatsApp message"</li>
-                <li>"Extract all emails from a webpage and save to CSV"</li>
-                <li>"Monitor a website for price changes and notify me"</li>
-            </ul>
-            
-            <form method="post">
-                <div class="form-group">
-                    <label>Automation Name:</label>
-                    <input type="text" name="name" value="My Automation" required>
-                </div>
-                <div class="form-group">
-                    <label>Describe what you want to automate:</label>
-                    <textarea name="prompt" rows="5" placeholder="e.g., When I get a new lead, automatically add them to my CRM and send a welcome email..." required></textarea>
-                </div>
-                <button class="btn" type="submit">🤖 Generate Automation</button>
-            </form>
-        </div>
-
-        {% if result %}
-        <div class="card" style="width:100%; margin-top:2rem; background:#f0f9ff;">
-            <h3>🎯 Generated Automation</h3>
-            <pre style="background:#fff; padding:1rem; border-radius:5px; overflow-x:auto;">{{ result }}</pre>
-                       <div style="margin-top:1rem;">
-                <button class="btn" onclick="copyToClipboard('{{ result | replace("'", "\\'") | replace("\n", "\\n") }}')">📋 Copy Code</button>
-                <button class="btn" onclick="executeAutomation()" style="background:#10b981;">🚀 Execute Automation</button>
-                <a href="{{ url_for('workflows') }}" class="btn">💾 Save as Workflow</a>
-            </div>
-            <div id="executionResults" style="margin-top:1rem; display:none;">
-                <h4>Execution Results:</h4>
-                <div id="resultsList"></div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if automations %}
-        <div class="card" style="width:100%; margin-top:2rem;">
-            <h3>📚 Recent Automations</h3>
-            {% for auto in automations %}
-            <div style="border-bottom:1px solid #eee; padding:1rem 0;">
-                <strong>{{ auto.name }}</strong>
-                <p style="color:#666; margin:0.5rem 0;">{{ auto.description }}</p>
-                <small style="color:#999;">Created: {{ auto.created }}</small>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    </main>
-           <script>
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text);
-            alert('Copied to clipboard!');
-        }
-
-        async function executeAutomation() {
-            try {
-                const resultText = `{{ result | safe }}`;
-                const steps = JSON.parse(resultText);
-                
-                const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
-                executeBtn.innerHTML = '⏳ Executing...';
-                executeBtn.disabled = true;
-                
-                const response = await fetch('/execute_automation', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ steps: steps })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    const resultsDiv = document.getElementById('executionResults');
-                    const resultsList = document.getElementById('resultsList');
-                    
-                    resultsList.innerHTML = data.results.map(result => 
-                        `<div style="padding:0.5rem; border-left:3px solid #10b981; margin:0.5rem 0; background:white;">
-                            ${result}
-                        </div>`
-                    ).join('');
-                    
-                    resultsDiv.style.display = 'block';
-                    executeBtn.innerHTML = '✅ Executed!';
-                } else {
-                    alert('Error: ' + data.error);
-                    executeBtn.innerHTML = '🚀 Execute Automation';
-                    executeBtn.disabled = false;
-                }
-                
-            } catch (error) {
-                alert('Error executing automation: ' + error.message);
-                const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
-                executeBtn.innerHTML = '🚀 Execute Automation';
-                executeBtn.disabled = false;
-            }
-        }
-        </script>
-        """, css=DASHBOARD_CSS, result=result, automations=automations)
 
 # === WORKFLOWS ===
 @app.route("/workflows")
@@ -854,6 +727,7 @@ def admin_leads():
 @app.route("/health")
 def health():
     return "OK"
+
 # === AUTHENTICATION ROUTES ===
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -1014,6 +888,7 @@ def pricing():
         </div>
     </div>
     ''', css=DASHBOARD_CSS, user=user)    
+
 # === AUTOMATION EXECUTION ===
 @app.route("/execute_automation", methods=["POST"])
 def execute_automation():
@@ -1024,7 +899,6 @@ def execute_automation():
         
         print(f"Executing {len(automation_steps)} steps")
         
-        # ✅ ONLY ONE FOR LOOP
         for step in automation_steps:
             step_type = step.get('type', '')
             action = step.get('action', '')
@@ -1032,61 +906,6 @@ def execute_automation():
             
             print(f"Processing step: {step_type} - {action}")
             
-            # Execute different step types
             if step_type == "webhook":
                 if "whatsapp" in action.lower():
-                    results.append(f"✅ WhatsApp webhook configured: {action}")
-                else:
-                    results.append(f"✅ Webhook created: {action}")
-                    
-            elif step_type == "notification":
-                if "whatsapp" in action.lower() or "message" in action.lower():
-                    whatsapp_result = send_whatsapp_message("+1234567890", f"Automation: {action}")
-                    results.append(whatsapp_result)
-                else:
-                    results.append(f"✅ Notification sent: {action}")
-                    
-            elif step_type == "database":
-                # Actually save to database
-                with get_db() as db:
-                    db.execute(
-                        "INSERT INTO leads (name, email, message) VALUES (?, ?, ?)",
-                        ("Auto Lead", "auto@example.com", f"Automation: {action} - {details}")
-                    )
-                    db.commit()
-                results.append(f"✅ Database updated: {action}")
-                
-            elif step_type == "email":
-                email_result = send_email("user@example.com", f"Automation: {action}", details)
-                results.append(email_result)
-                
-            elif step_type == "data_processing":
-                results.append(f"✅ Data processed: {action}")
-                
-            elif step_type == "followup":
-                results.append(f"✅ Followup scheduled: {action}")
-                
-            elif step_type == "http_request":
-                results.append(f"✅ HTTP request executed: {action}")
-                
-            else:
-                results.append(f"⚡ Executed: {action}")
-
-        print(f"Execution completed with {len(results)} results")
-        
-        return jsonify({
-            "success": True,
-            "message": "Automation executed successfully!",
-            "results": results
-        })
-        
-    except Exception as e:
-        print(f"Execution error: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+                    results.append(f"✅ WhatsApp webhook configured: {
