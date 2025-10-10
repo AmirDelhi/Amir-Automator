@@ -1,6 +1,0 @@
-# .env file (KEEP THIS LOCALLY)
-SECRET_KEY=dev-secret-key
-OPENROUTER_API_KEY=your-key-here
-TWILIO_ACCOUNT_SID=your-sid
-TWILIO_AUTH_TOKEN=your-token
-TWILIO_WHATSAPP_NUMBER=your-number
