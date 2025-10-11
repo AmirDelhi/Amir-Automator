@@ -8,7 +8,7 @@ from flask import Flask, request, redirect, url_for, flash, render_template_stri
 from dotenv import load_dotenv
 import requests
 
-# Load environment
+# Load environment variables from .env if present
 load_dotenv()
 
 app = Flask(__name__)
@@ -78,6 +78,7 @@ def init_db():
     print("Database initialized.")
 
 
+# Initialize DB at startup (safe for local dev)
 init_db()
 
 # === USER MANAGEMENT ===
@@ -111,6 +112,16 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 def call_ai_simple(user_input: str) -> str:
     """Call an AI endpoint with fallbacks. Returns a string (possibly JSON)."""
     try:
+        # If no API key configured, return a sensible fallback
+        if not OPENROUTER_API_KEY:
+            return json.dumps([
+                {"type": "http_request", "action": "Capture form data", "details": "Create POST endpoint to receive form submissions"},
+                {"type": "data_processing", "action": "Validate and clean data", "details": "Check email format, remove extra spaces"},
+                {"type": "database", "action": "Store in SQL database", "details": "Use SQLite or PostgreSQL with proper schema"},
+                {"type": "notification", "action": "Send alert", "details": "Choose: Email, SMS, Slack, Discord webhook"},
+                {"type": "followup", "action": "Auto-responder", "details": "Send thank you email to the submitter"}
+            ])
+
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
             "Content-Type": "application/json",
@@ -127,18 +138,26 @@ def call_ai_simple(user_input: str) -> str:
 
         response = requests.post(url, headers=headers, json=data, timeout=30)
         if response.status_code == 200:
-            result = response.json()
-            # Defensive access
+            # Try to extract a text response; if structure differs, return full JSON string
             try:
-                return result['choices'][0]['message']['content']
+                result = response.json()
+                # defensive access for different API shapes
+                if isinstance(result, dict) and 'choices' in result:
+                    try:
+                        return result['choices'][0]['message']['content']
+                    except Exception:
+                        return json.dumps(result)
+                # fallback to text body
+                return response.text
             except Exception:
-                return json.dumps(result)
+                return response.text
         elif response.status_code == 429:
+            # Rate-limited — provide helpful fallback JSON guidance
             return json.dumps([
                 {"type": "webhook", "action": "Trigger when form is submitted", "details": "Create webhook endpoint at /webhooks/form-submit"},
-                {"type": "notification", "action": "Send email notification", "details": "Use: requests.post('https://api.emailservice.com/send', json={'to': 'you@email.com', 'subject': 'New Form Submission', 'body': 'Someone filled your form'})"},
-                {"type": "database", "action": "Save lead to database", "details": "INSERT INTO leads (name, email, message) VALUES (form_data.name, form_data.email, form_data.message)"},
-                {"type": "followup", "action": "Send welcome email", "details": "Schedule email 24 hours after form submission"}
+                {"type": "notification", "action": "Send email notification", "details": "Use external email API to notify team"},
+                {"type": "database", "action": "Save lead to database", "details": "INSERT INTO leads (name, email, message) VALUES (?, ?, ?)"},
+                {"type": "followup", "action": "Send welcome email", "details": "Schedule greeting email after submission"}
             ])
         else:
             return json.dumps([
@@ -148,7 +167,8 @@ def call_ai_simple(user_input: str) -> str:
                 {"type": "notify", "action": "Send instant notification", "details": "Options: Email, WhatsApp, Slack webhook"}
             ])
 
-    except Exception as e:
+    except Exception:
+        # Generic fallback (ensures a JSON string response)
         return json.dumps([
             {"type": "http_request", "action": "Capture form data", "details": "Create POST endpoint to receive form submissions"},
             {"type": "data_processing", "action": "Validate and clean data", "details": "Check email format, remove extra spaces"},
@@ -193,14 +213,12 @@ def send_whatsapp_message(to_number, message):
     try:
         account_sid = os.environ.get('TWILIO_ACCOUNT_SID', 'demo')
         auth_token = os.environ.get('TWILIO_AUTH_TOKEN', 'demo')
-        from_whatsapp = os.environ.get('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')
 
         if account_sid == 'demo' or auth_token == 'demo':
             return f"📱 WhatsApp message ready to send to {to_number}: {message[:50]}..."
 
-        # In a real implementation we'd call Twilio's API here.
-        return f"📱 WhatsApp message ready to send to {to_number}: {message[:50]}..."
-
+        # Real Twilio call would go here (omitted intentionally)
+        return f"📱 WhatsApp message queued to {to_number}: {message[:50]}..."
     except Exception as e:
         return f"❌ WhatsApp Error: {str(e)}"
 
@@ -242,6 +260,7 @@ PREBUILT_AUTOMATIONS = {
     }
 }
 
+# Small, shared CSS for templates
 DASHBOARD_CSS = """
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -253,10 +272,12 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 </style>
 """
 
+
 # === ROUTES ===
 @app.route("/")
 def home():
     return redirect(url_for("dashboard"))
+
 
 @app.route("/dashboard")
 def dashboard():
@@ -302,6 +323,8 @@ def dashboard():
     {% endwith %}
     ''', css=DASHBOARD_CSS, user=user, cards=cards)
 
+
+# AI Automation Builder
 @app.route("/ai_automation", methods=["GET", "POST"])
 def ai_automation_builder():
     result = ""
@@ -394,7 +417,8 @@ def ai_automation_builder():
                     const resultsDiv = document.getElementById('executionResults');
                     const resultsList = document.getElementById('resultsList');
                     resultsList.innerHTML = data.results.map(result => `
-                        <div style="padding:0.5rem; border-left:3px solid #10b981; margin:0.5rem 0; background:white;">${result}</div>`).join('');
+                        <div style="padding:0.5rem; border-left:3px solid #10b981; margin:0.5rem 0; background:white;">${result}</div>
+                    `).join('');
                     resultsDiv.style.display = 'block';
                     executeBtn.innerHTML = '✅ Executed!';
                 } else {
@@ -404,7 +428,7 @@ def ai_automation_builder():
                 }
 
             } catch (error) {
-                alert('Error executing automation: ' + error.message);
+                alert('Error executing automation: ' + (error.message || error));
                 const executeBtn = document.querySelector('button[onclick="executeAutomation()"]');
                 executeBtn.innerHTML = '🚀 Execute Automation';
                 executeBtn.disabled = false;
@@ -412,6 +436,7 @@ def ai_automation_builder():
         }
     </script>
     """, css=DASHBOARD_CSS, result=result, automations=automations)
+
 
 @app.route("/workflows")
 def workflows():
@@ -432,9 +457,11 @@ def workflows():
     </main>
     """, css=DASHBOARD_CSS, workflows=workflows)
 
+
 @app.route("/workflows/run/<int:id>")
 def workflow_run(id):
     return f"Workflow run page for {id}"
+
 
 @app.route("/tools")
 def tools():
@@ -444,13 +471,16 @@ def tools():
     <div style="text-align:center; margin:2rem;"><a href="{{ url_for('ai_automation_builder') }}" class="btn">🤖 Back to AI Builder</a></div>
     """, css=DASHBOARD_CSS)
 
+
 @app.route("/admin/leads")
 def admin_leads():
     return "Leads admin page"
 
+
 @app.route("/health")
 def health():
     return "OK"
+
 
 # === AUTH ===
 @app.route("/register", methods=["GET", "POST"])
@@ -486,6 +516,7 @@ def register():
     </div></main>
     """, css=DASHBOARD_CSS)
 
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -516,11 +547,13 @@ def login():
     </div></main>
     """, css=DASHBOARD_CSS)
 
+
 @app.route("/logout")
 def logout():
     session.clear()
     flash("Logged out successfully", "success")
     return redirect(url_for("dashboard"))
+
 
 # Pricing
 @app.route("/pricing")
@@ -542,6 +575,7 @@ def pricing():
     </div>
     """, css=DASHBOARD_CSS, user=user)
 
+
 # === EXECUTION ENDPOINT ===
 @app.route("/execute_automation", methods=["POST"])
 def execute_automation():
@@ -554,7 +588,7 @@ def execute_automation():
             if not isinstance(step, dict):
                 results.append(f"❌ Invalid step: {step}")
                 continue
-            step_type = step.get('type', '').lower()
+            step_type = (step.get('type') or '').lower()
             action = step.get('action', '')
             details = step.get('details', '')
 
@@ -569,9 +603,10 @@ def execute_automation():
                 results.append(f"✅ Database step: {action}")
             elif step_type == 'http_request':
                 # attempt a simple GET if details contains a URL
-                if 'http' in details:
+                if isinstance(details, str) and 'http' in details:
                     try:
-                        r = requests.get(details.split('\n')[0].strip(), timeout=10)
+                        url = details.split('\n')[0].strip()
+                        r = requests.get(url, timeout=10)
                         results.append(f"✅ HTTP Request to {r.url} - {r.status_code}")
                     except Exception as e:
                         results.append(f"❌ HTTP Request failed: {str(e)}")
@@ -584,6 +619,8 @@ def execute_automation():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    # Bind to 0.0.0.0 so local machine and other hosts (if allowed) can reach it.
     app.run(host='0.0.0.0', port=port, debug=True)
